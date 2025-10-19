@@ -26,8 +26,10 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       RECEIPTS_DB: Host=postgres;Port=5432;Database=receipts;Username=postgres;Password=postgres
+      CATALOG_API: http://catalog-api:8080
     depends_on:
       - postgres
+      - catalog-api
     ports:
       - "5102:8080"
 volumes:

@@ -3,6 +3,8 @@ using Receipts.Application.Models;
 using Receipts.Application.Services;
 using Receipts.Infrastructure;
 using Receipts.Infrastructure.Db;
+using Receipts.Application.Ports;
+using Receipts.Infrastructure.CatalogSync;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +21,8 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.AddReceiptsInfrastructure(connectionString);
 
 builder.Services.AddScoped<ReceiptService>();
+
+builder.Services.AddHttpClient<ICatalogSyncService, CatalogSyncService>();
 
 builder.Services.AddCors(options =>
 {
@@ -43,10 +47,29 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.MapPost("/api/receipts", async (ReceiptCreateRequest req, ReceiptService svc, CancellationToken ct) =>
+app.MapPost("/api/receipts", async (ReceiptCreateRequest req, ReceiptService svc, ICatalogSyncService catalog, CancellationToken ct) =>
 {
+    // naive parse of items from payload: expects JSON like [{"name":"Milk","price":1.23}, ...]
+    try
+    {
+        var items = System.Text.Json.JsonSerializer.Deserialize<List<Item>>(req.Payload) ?? new();
+        var simplified = items.Where(i => !string.IsNullOrWhiteSpace(i.name)).Select(i => (i.name!, i.price)).ToList();
+        if (simplified.Count > 0)
+        {
+            await catalog.EnsureStoreAndProductsAsync(req.StoreName, simplified, ct);
+        }
+    }
+    catch
+    {
+        // ignore payload parsing errors; still save receipt
+    }
+
     var id = await svc.CreateAsync(req, ct);
     return Results.Created($"/api/receipts/{id}", new { id });
+}).WithOpenApi(op =>
+{
+    op.Summary = "Save a receipt; will create missing store/products in Catalog";
+    return op;
 });
 
 app.MapGet("/api/receipts/{id:guid}", async (Guid id, ReceiptService svc, CancellationToken ct) =>
@@ -62,3 +85,5 @@ app.MapGet("/api/receipts", async (int? skip, int? take, ReceiptService svc, Can
 });
 
 app.Run();
+
+record Item(string? name, decimal price);
