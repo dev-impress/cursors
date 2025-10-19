@@ -23,6 +23,9 @@ builder.Services.AddReceiptsInfrastructure(connectionString);
 builder.Services.AddScoped<ReceiptService>();
 
 builder.Services.AddHttpClient<ICatalogSyncService, CatalogSyncService>();
+builder.Services.AddHttpClient<ICatalogQueryService, CatalogQueryService>();
+
+builder.Services.AddScoped<AnalyticsService>();
 
 builder.Services.AddCors(options =>
 {
@@ -52,17 +55,14 @@ app.MapPost("/api/receipts", async (ReceiptCreateRequest req, ReceiptService svc
     // naive parse of items from payload: expects JSON like [{"name":"Milk","price":1.23}, ...]
     try
     {
-        var items = System.Text.Json.JsonSerializer.Deserialize<List<Item>>(req.Payload) ?? new();
-        var simplified = items.Where(i => !string.IsNullOrWhiteSpace(i.name)).Select(i => (i.name!, i.price)).ToList();
-        if (simplified.Count > 0)
-        {
-            await catalog.EnsureStoreAndProductsAsync(req.StoreName, simplified, ct);
-        }
+      var items = System.Text.Json.JsonSerializer.Deserialize<List<Item>>(req.Payload) ?? new();
+      var simplified = items.Where(i => !string.IsNullOrWhiteSpace(i.name)).Select(i => (i.name!, i.price)).ToList();
+      if (simplified.Count > 0)
+      {
+          await catalog.EnsureStoreAndProductsAsync(req.StoreName, simplified, ct);
+      }
     }
-    catch
-    {
-        // ignore payload parsing errors; still save receipt
-    }
+    catch { }
 
     var id = await svc.CreateAsync(req, ct);
     return Results.Created($"/api/receipts/{id}", new { id });
@@ -82,6 +82,25 @@ app.MapGet("/api/receipts", async (int? skip, int? take, ReceiptService svc, Can
 {
     var items = await svc.ListAsync(skip ?? 0, take ?? 100, ct);
     return Results.Ok(items);
+});
+
+// Analytics endpoints
+app.MapGet("/api/analytics/daily", async (DateOnly from, DateOnly to, AnalyticsService svc, CancellationToken ct) =>
+{
+    var data = await svc.GetDailySpendAsync(from, to, ct);
+    return Results.Ok(data.Select(d => new { day = d.day, total = d.total }));
+});
+
+app.MapGet("/api/analytics/monthly-avg", async (int yearFrom, int monthFrom, int yearTo, int monthTo, AnalyticsService svc, CancellationToken ct) =>
+{
+    var data = await svc.GetMonthlyAvgDailySpendAsync(yearFrom, monthFrom, yearTo, monthTo, ct);
+    return Results.Ok(data.Select(x => new { year = x.year, month = x.month, avgPerDay = x.avgPerDay }));
+});
+
+app.MapGet("/api/analytics/current-month-share", async (AnalyticsService svc, CancellationToken ct) =>
+{
+    var data = await svc.GetCurrentMonthCategoryShareAsync(ct);
+    return Results.Ok(data.Select(x => new { category = x.category, total = x.total }));
 });
 
 app.Run();
