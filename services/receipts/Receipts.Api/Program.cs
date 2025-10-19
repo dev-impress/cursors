@@ -5,6 +5,8 @@ using Receipts.Infrastructure;
 using Receipts.Infrastructure.Db;
 using Receipts.Application.Ports;
 using Receipts.Infrastructure.CatalogSync;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,6 +35,25 @@ builder.Services.AddCors(options =>
         policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
 });
 
+// Keycloak JWT auth
+var authAuthority = builder.Configuration["Keycloak:Authority"] ?? builder.Configuration["AUTH_AUTHORITY"];
+var authAudience = builder.Configuration["Keycloak:Audience"] ?? builder.Configuration["AUTH_AUDIENCE"] ?? "mvp-api";
+if (!string.IsNullOrEmpty(authAuthority))
+{
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.Authority = authAuthority;
+            options.Audience = authAudience;
+            options.RequireHttpsMetadata = false;
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateAudience = true,
+                ValidateIssuer = true
+            };
+        });
+}
+
 var app = builder.Build();
 
 // Ensure database is created (MVP)
@@ -43,6 +64,8 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
 
 if (app.Environment.IsDevelopment())
 {
@@ -66,7 +89,7 @@ app.MapPost("/api/receipts", async (ReceiptCreateRequest req, ReceiptService svc
 
     var id = await svc.CreateAsync(req, ct);
     return Results.Created($"/api/receipts/{id}", new { id });
-}).WithOpenApi(op =>
+}).RequireAuthorization().WithOpenApi(op =>
 {
     op.Summary = "Save a receipt; will create missing store/products in Catalog";
     return op;
@@ -76,32 +99,32 @@ app.MapGet("/api/receipts/{id:guid}", async (Guid id, ReceiptService svc, Cancel
 {
     var item = await svc.GetAsync(id, ct);
     return item is null ? Results.NotFound() : Results.Ok(item);
-});
+}).RequireAuthorization();
 
 app.MapGet("/api/receipts", async (int? skip, int? take, ReceiptService svc, CancellationToken ct) =>
 {
     var items = await svc.ListAsync(skip ?? 0, take ?? 100, ct);
     return Results.Ok(items);
-});
+}).RequireAuthorization();
 
 // Analytics endpoints
 app.MapGet("/api/analytics/daily", async (DateOnly from, DateOnly to, AnalyticsService svc, CancellationToken ct) =>
 {
     var data = await svc.GetDailySpendAsync(from, to, ct);
     return Results.Ok(data.Select(d => new { day = d.day, total = d.total }));
-});
+}).RequireAuthorization();
 
 app.MapGet("/api/analytics/monthly-avg", async (int yearFrom, int monthFrom, int yearTo, int monthTo, AnalyticsService svc, CancellationToken ct) =>
 {
     var data = await svc.GetMonthlyAvgDailySpendAsync(yearFrom, monthFrom, yearTo, monthTo, ct);
     return Results.Ok(data.Select(x => new { year = x.year, month = x.month, avgPerDay = x.avgPerDay }));
-});
+}).RequireAuthorization();
 
 app.MapGet("/api/analytics/current-month-share", async (AnalyticsService svc, CancellationToken ct) =>
 {
     var data = await svc.GetCurrentMonthCategoryShareAsync(ct);
     return Results.Ok(data.Select(x => new { category = x.category, total = x.total }));
-});
+}).RequireAuthorization();
 
 app.Run();
 

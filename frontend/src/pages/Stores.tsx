@@ -4,18 +4,19 @@ type Category = { id: string; name: string }
 
 type Store = { id: string; name: string; categoryId?: string | null; categoryName?: string | null }
 
-type Props = { baseUrl: string }
+type Props = { baseUrl: string, token: string | null }
 
-export function Stores({ baseUrl }: Props) {
+export function Stores({ baseUrl, token }: Props) {
   const [items, setItems] = useState<Store[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [name, setName] = useState('')
   const [categoryId, setCategoryId] = useState<string>('')
 
   async function load() {
+    const headers = token ? { Authorization: `Bearer ${token}` } : {}
     const [storesRes, catsRes] = await Promise.all([
-      fetch(`${baseUrl}/api/stores`),
-      fetch(`${baseUrl}/api/categories`),
+      fetch(`${baseUrl}/api/stores`, { headers }),
+      fetch(`${baseUrl}/api/categories`, { headers }),
     ])
     setItems(await storesRes.json())
     setCategories(await catsRes.json())
@@ -25,17 +26,17 @@ export function Stores({ baseUrl }: Props) {
 
   async function create() {
     const body = { name, categoryId: categoryId || null }
-    await fetch(`${baseUrl}/api/stores`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    await fetch(`${baseUrl}/api/stores`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) })
     setName(''); setCategoryId(''); await load()
   }
 
   async function update(id: string, newName: string, newCategoryId: string | null) {
-    await fetch(`${baseUrl}/api/stores/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName, categoryId: newCategoryId }) })
+    await fetch(`${baseUrl}/api/stores/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ name: newName, categoryId: newCategoryId }) })
     await load()
   }
 
   async function remove(id: string) {
-    await fetch(`${baseUrl}/api/stores/${id}`, { method: 'DELETE' })
+    await fetch(`${baseUrl}/api/stores/${id}`, { method: 'DELETE', headers: token ? { Authorization: `Bearer ${token}` } : {} })
     await load()
   }
 

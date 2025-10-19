@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react'
 
 type Receipt = { id: string; issuedAt: string; storeName: string; currency: string; total: number; payload: string }
 
-type Props = { baseUrl: string }
+type Props = { baseUrl: string, token: string | null }
 
-export function Receipts({ baseUrl }: Props) {
+export function Receipts({ baseUrl, token }: Props) {
   const [items, setItems] = useState<Receipt[]>([])
 
   const [issuedAt, setIssuedAt] = useState<string>(() => new Date().toISOString().slice(0,16))
@@ -14,7 +14,7 @@ export function Receipts({ baseUrl }: Props) {
   const [payload, setPayload] = useState('')
 
   async function load() {
-    const res = await fetch(`${baseUrl}/api/receipts`)
+    const res = await fetch(`${baseUrl}/api/receipts`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
     setItems(await res.json())
   }
 
@@ -22,7 +22,7 @@ export function Receipts({ baseUrl }: Props) {
 
   async function create() {
     await fetch(`${baseUrl}/api/receipts`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ issuedAt: new Date(issuedAt), storeName, currency, total: parseFloat(total), payload })
     })
     setStoreName(''); setTotal('0'); setPayload(''); await load()

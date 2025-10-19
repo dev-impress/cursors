@@ -2,15 +2,15 @@ import React, { useEffect, useState } from 'react'
 
 type Category = { id: string; name: string; description?: string | null }
 
-type Props = { baseUrl: string }
+type Props = { baseUrl: string, token: string | null }
 
-export function Categories({ baseUrl }: Props) {
+export function Categories({ baseUrl, token }: Props) {
   const [items, setItems] = useState<Category[]>([])
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
 
   async function load() {
-    const res = await fetch(`${baseUrl}/api/categories`)
+    const res = await fetch(`${baseUrl}/api/categories`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
     setItems(await res.json())
   }
 
@@ -18,7 +18,7 @@ export function Categories({ baseUrl }: Props) {
 
   async function create() {
     await fetch(`${baseUrl}/api/categories`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ name, description })
     })
     setName(''); setDescription(''); await load()
@@ -26,14 +26,14 @@ export function Categories({ baseUrl }: Props) {
 
   async function update(id: string, newName: string, newDescription: string) {
     await fetch(`${baseUrl}/api/categories/${id}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      method: 'PUT', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({ name: newName, description: newDescription })
     })
     await load()
   }
 
   async function remove(id: string) {
-    await fetch(`${baseUrl}/api/categories/${id}`, { method: 'DELETE' })
+    await fetch(`${baseUrl}/api/categories/${id}`, { method: 'DELETE', headers: token ? { Authorization: `Bearer ${token}` } : {} })
     await load()
   }
 

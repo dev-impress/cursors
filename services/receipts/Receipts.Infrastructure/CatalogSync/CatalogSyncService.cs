@@ -32,21 +32,39 @@ public class CatalogSyncService : ICatalogSyncService
         }
         if (store is null) return;
 
-        // 2) fetch existing products for the store
-        var existing = await _http.GetFromJsonAsync<List<ProductDto>>($"{_catalogBaseUrl}/api/stores/{store.Id}/products", ct) ?? new List<ProductDto>();
-        var existingNames = new HashSet<string>(existing.Select(p => p.Name), StringComparer.OrdinalIgnoreCase);
-
-        // 3) create missing products
+        // 2) For each item: ensure a GlobalProduct exists; ensure StoreProduct exists; update price & history
         foreach (var item in items)
         {
             if (string.IsNullOrWhiteSpace(item.name)) continue;
-            if (existingNames.Contains(item.name)) continue;
-            var resp = await _http.PostAsJsonAsync($"{_catalogBaseUrl}/api/products", new { name = item.name, price = item.price, storeId = store.Id, categoryId = (Guid?)null }, ct);
-            resp.EnsureSuccessStatusCode();
+
+            // Global product by name
+            var global = await _http.GetFromJsonAsync<GlobalProductDto?>($"{_catalogBaseUrl}/api/global-products/by-name/{Uri.EscapeDataString(item.name)}", ct);
+            if (global is null)
+            {
+                var createGlobal = await _http.PostAsJsonAsync($"{_catalogBaseUrl}/api/global-products", new { name = item.name, categoryId = (Guid?)null }, ct);
+                createGlobal.EnsureSuccessStatusCode();
+                global = await createGlobal.Content.ReadFromJsonAsync<GlobalProductDto>(cancellationToken: ct);
+            }
+            if (global is null) continue;
+
+            // Store product by store + storeSpecificName
+            var storeProduct = await _http.GetFromJsonAsync<StoreProductDto?>($"{_catalogBaseUrl}/api/stores/{store.Id}/store-products/by-name/{Uri.EscapeDataString(item.name)}", ct);
+            if (storeProduct is null)
+            {
+                var createSp = await _http.PostAsJsonAsync($"{_catalogBaseUrl}/api/stores/{store.Id}/store-products", new { globalProductId = global.Id, storeSpecificName = item.name, price = item.price }, ct);
+                createSp.EnsureSuccessStatusCode();
+            }
+            else
+            {
+                // Update price (creates price history)
+                var upd = await _http.PutAsJsonAsync($"{_catalogBaseUrl}/api/store-products/{storeProduct.Id}/price", new { price = item.price }, ct);
+                upd.EnsureSuccessStatusCode();
+            }
         }
     }
 
     private record StoreDto(Guid Id, string Name);
-    private record ProductDto(Guid Id, string Name);
     private record CreatedResponse(Guid id);
+    private record GlobalProductDto(Guid Id, string Name);
+    private record StoreProductDto(Guid Id, string StoreSpecificName, decimal CurrentPrice);
 }

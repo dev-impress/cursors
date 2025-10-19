@@ -16,9 +16,9 @@ type Product = {
   effectiveCategoryName?: string | null
 }
 
-type Props = { baseUrl: string }
+type Props = { baseUrl: string, token: string | null }
 
-export function Products({ baseUrl }: Props) {
+export function Products({ baseUrl, token }: Props) {
   const [items, setItems] = useState<Product[]>([])
   const [stores, setStores] = useState<Store[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -29,10 +29,11 @@ export function Products({ baseUrl }: Props) {
   const [categoryId, setCategoryId] = useState('')
 
   async function load() {
+    const headers = token ? { Authorization: `Bearer ${token}` } : {}
     const [prodsRes, storesRes, catsRes] = await Promise.all([
-      fetch(`${baseUrl}/api/products`),
-      fetch(`${baseUrl}/api/stores`),
-      fetch(`${baseUrl}/api/categories`),
+      fetch(`${baseUrl}/api/products`, { headers }),
+      fetch(`${baseUrl}/api/stores`, { headers }),
+      fetch(`${baseUrl}/api/categories`, { headers }),
     ])
     setItems(await prodsRes.json())
     setStores(await storesRes.json())
@@ -43,17 +44,17 @@ export function Products({ baseUrl }: Props) {
 
   async function create() {
     const body = { name, price: parseFloat(price), storeId, categoryId: categoryId || null }
-    await fetch(`${baseUrl}/api/products`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    await fetch(`${baseUrl}/api/products`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) })
     setName(''); setPrice('0'); setStoreId(''); setCategoryId(''); await load()
   }
 
   async function update(id: string, newName: string, newPrice: number, newCategoryId: string | null) {
-    await fetch(`${baseUrl}/api/products/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName, price: newPrice, categoryId: newCategoryId }) })
+    await fetch(`${baseUrl}/api/products/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ name: newName, price: newPrice, categoryId: newCategoryId }) })
     await load()
   }
 
   async function remove(id: string) {
-    await fetch(`${baseUrl}/api/products/${id}`, { method: 'DELETE' })
+    await fetch(`${baseUrl}/api/products/${id}`, { method: 'DELETE', headers: token ? { Authorization: `Bearer ${token}` } : {} })
     await load()
   }
 
