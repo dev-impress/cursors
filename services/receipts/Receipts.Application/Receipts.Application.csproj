@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Receipts.Application</AssemblyName>
+    <RootNamespace>Receipts.Application</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Receipts.Domain/Receipts.Domain.csproj" />
+  </ItemGroup>
+</Project>
