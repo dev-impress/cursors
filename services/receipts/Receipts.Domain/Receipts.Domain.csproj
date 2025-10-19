@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Receipts.Domain</AssemblyName>
+    <RootNamespace>Receipts.Domain</RootNamespace>
+  </PropertyGroup>
+</Project>
